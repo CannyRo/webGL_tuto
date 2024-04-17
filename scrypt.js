@@ -22,21 +22,47 @@ function main() {
 
     //// ##__AJOUT TUTO 02__## ////
     // Programme shader de sommet = vertex shader
+    // const vsSource = `
+    // attribute vec4 aVertexPosition;
+
+    // uniform mat4 uModelViewMatrix;
+    // uniform mat4 uProjectionMatrix;
+
+    // void main() {
+    //     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+    // }
+    // `;
+    //// ##__AJOUT TUTO 03__## ////
+    // Programme shader de sommet = vertex shader
     const vsSource = `
     attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
 
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
 
+    varying lowp vec4 vColor;
+
     void main() {
         gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vColor = aVertexColor;
     }
     `;
+    //// ##__AJOUT TUTO 02__## ////
+    // Programme shader de fragment = fragment shader
+    // const fsSource = `
+    // void main() {
+    //     gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    // }
+    // `;
+    //// ##__AJOUT TUTO 03__## ////
     // Programme shader de fragment = fragment shader
     const fsSource = `
-    void main() {
-        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-    }
+        varying lowp vec4 vColor;
+
+        void main(void) {
+            gl_FragColor = vColor;
+        }
     `;
     // Initialiser un programme de shader 
     // c'est là que tous les éclairages pour les sommets et ainsi de suite sont établis.
@@ -48,6 +74,7 @@ function main() {
         program: shaderProgram,
         attribLocations: {
           vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
+          vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'), // <<<<==== //// ##__AJOUT TUTO 03__## ////
         },
         uniformLocations: {
           projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
@@ -118,27 +145,57 @@ function loadShader(gl, type, source) {
 //
 function initBuffers(gl) {
     // Créer un tampon des positions pour le carré.
-  
+    const positionBuffer = initPositionBuffer(gl);
+    //// ##__AJOUT TUTO 03__## ////
+    // Créer un tampon des couleurs pour le carré.
+    const colorBuffer = initColorBuffer(gl);
+
+    return {
+      position: positionBuffer,
+      //// ##__AJOUT TUTO 03__## ////
+      color: colorBuffer,
+    };
+}
+//
+// Tampon de positions
+//
+function initPositionBuffer(gl) {
+    // Créer un tampon des positions pour le carré.
     const positionBuffer = gl.createBuffer();
   
     // Définir le positionBuffer comme étant celui auquel appliquer les opérations
     // de tampon à partir d'ici.
-  
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   
     // Créer maintenant un tableau des positions pour le carré.
-  
     const positions = [1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0];
   
     // Passer mainenant la liste des positions à WebGL pour construire la forme.
     // Nous faisons cela en créant un Float32Array à partir du tableau JavaScript,
     // puis en l'utilisant pour remplir le tampon en cours.
-  
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
   
-    return {
-      position: positionBuffer,
-    };
+    return positionBuffer;
+}
+//
+// Tampon de couleurs
+//
+function initColorBuffer(gl) {
+    // Création des couleurs, ici une couleur différente pour chacun des quatres sommet du carré 2D
+    //
+    const colors = [
+        //R   //G   //B   //A
+        1.0,  1.0,  1.0,  1.0,    // = blanc
+        1.0,  0.0,  0.0,  1.0,    // = rouge
+        0.0,  1.0,  0.0,  1.0,    // = vert
+        0.0,  0.0,  1.0,  1.0,    // = bleu
+    ];
+  
+    const colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+  
+    return colorBuffer;
 }
 //
 // Fonction pour dessiner le rendu final grâce à la définition préalable
@@ -184,33 +241,18 @@ function drawScene(gl, programInfo, buffers) {
       [-0.0, 0.0, -6.0],
     ); // quantité de déplacement
   
-    // Indiquer à WebGL comment extraire les positions à partir du tampon des
-    // positions pour les mettre dans l'attribut vertexPosition.
-    {
-      const numComponents = 2; // extraire 2 valeurs par itération
-      const type = gl.FLOAT; // les données dans le tampon sont des flottants 32bit
-      const normalize = false; // ne pas normaliser
-      const stride = 0; // combien d'octets à extraire entre un jeu de valeurs et le suivant
-      // 0 = utiliser le type et numComponents ci-dessus
-      const offset = 0; // démarrer à partir de combien d'octets dans le tampon
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-      gl.vertexAttribPointer(
-        programInfo.attribLocations.vertexPosition,
-        numComponents,
-        type,
-        normalize,
-        stride,
-        offset,
-      );
-      gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-    }
-  
+    // Dire à WebGL comment extraire les positions du tampon  
+    // de position dans l'attribut vertexPosition.
+    setPositionAttribute(gl, buffers, programInfo);
+    //// ##__AJOUT TUTO 03__## ////
+    // Dire à WebGL comment extraire les couleurs du tampon  
+    // de couleurs dans l'attribut vertexColor.
+    setColorAttribute(gl, buffers, programInfo);
+
     // Indiquer à WebGL d'utiliser notre programme pour dessiner
-  
     gl.useProgram(programInfo.program);
-  
+
     // Définir les uniformes du shader
-  
     gl.uniformMatrix4fv(
       programInfo.uniformLocations.projectionMatrix,
       false,
@@ -227,4 +269,46 @@ function drawScene(gl, programInfo, buffers) {
       const vertexCount = 4;
       gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
     }
+}
+//
+// Indiquer à WebGL comment extraire les positions à partir du tampon des
+// positions pour les mettre dans l'attribut vertexPosition.
+function setPositionAttribute(gl, buffers, programInfo) {
+    const numComponents = 2; // extraire 2 valeurs par itération
+    const type = gl.FLOAT; // les données dans le tampon sont des flottants 32bit
+    const normalize = false; // ne pas normaliser
+    const stride = 0; // combien d'octets à extraire entre un jeu de valeurs et le suivant
+    // 0 = utiliser le type et numComponents ci-dessus
+    const offset = 0; // démarrer à partir de combien d'octets dans le tampon
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+    gl.vertexAttribPointer(
+    programInfo.attribLocations.vertexPosition,
+    numComponents,
+    type,
+    normalize,
+    stride,
+    offset,
+    );
+    gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+}
+//// ##__AJOUT TUTO 03__## ////
+// Indiquer à WebGL comment transférer les couleurs du tampon des couleurs
+// dans l'attribut vertexColor.
+function setColorAttribute(gl, buffers, programInfo){
+    const numComponents = 4; // extraire 4 valeurs par itération
+    const type = gl.FLOAT; // les données dans le tampon sont des flottants 32bit
+    const normalize = false; // ne pas normaliser
+    const stride = 0; // combien d'octets à extraire entre un jeu de valeurs et le suivant
+    // 0 = utiliser le type et numComponents ci-dessus
+    const offset = 0; // démarrer à partir de combien d'octets dans le tampon
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
+    gl.vertexAttribPointer(
+        programInfo.attribLocations.vertexColor,
+        numComponents,
+        type,
+        normalize,
+        stride,
+        offset,
+    );
+    gl.enableVertexAttribArray(programInfo.attribLocations.vertexColor);
 }
