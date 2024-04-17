@@ -1,4 +1,8 @@
 console.log("Hello WebGL");
+
+let squareRotation = 0.0; //// ##__AJOUT TUTO 04__## ////
+let deltaTime = 0; //// ##__AJOUT TUTO 04__## ////
+
 main();
 //
 // Début ici
@@ -84,8 +88,25 @@ function main() {
     // Ici on appelle la routine qui va construire
     // tous les object qui seront dessinés
     const buffers = initBuffers(gl);
+    //// ##__AJOUT TUTO 04__## //// nouvelle variable pour mémoriser l'instant auquel nous avons réalisé l'animation pour la dernière fois
+    let then = 0;
+
     // On dessine la scène
-    drawScene(gl, programInfo, buffers);
+    //drawScene(gl, programInfo, buffers);
+    
+    //// ##__AJOUT TUTO 04__## ////
+    // Dessiner la scène répétitivement
+    function render(now) {
+        now *= 0.001; // conversion en secondes
+        const deltaTime = now - then;
+        then = now;
+    
+        drawScene(gl, programInfo, buffers, squareRotation);
+        squareRotation += deltaTime;
+    
+        requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
 }
 
 //// ##__AJOUT TUTO 02__## ////
@@ -234,13 +255,20 @@ function drawScene(gl, programInfo, buffers) {
   
     // Commencer maintenant à déplacer la position de dessin un peu vers là où
     // nous voulons commencer à dessiner le carré.
-  
     mat4.translate(
       modelViewMatrix, // matrice de destination
       modelViewMatrix, // matrice de déplacement
       [-0.0, 0.0, -6.0],
     ); // quantité de déplacement
-  
+
+    //// ##__AJOUT TUTO 04__## //// ==> Rotation
+    mat4.rotate(
+        modelViewMatrix, // matrice de destination
+        modelViewMatrix, // matrice de rotation
+        squareRotation, // rotation en radians
+        [0, 0, 1], // [ xAxe, yAxe, zAxe]
+    ); // axe autour duquel tourner (ici l'axe de rotation est l'axe Z)
+
     // Dire à WebGL comment extraire les positions du tampon  
     // de position dans l'attribut vertexPosition.
     setPositionAttribute(gl, buffers, programInfo);
