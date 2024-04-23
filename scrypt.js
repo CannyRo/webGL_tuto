@@ -1,6 +1,6 @@
 console.log("Hello WebGL");
 
-let squareRotation = 0.0; //// ##__AJOUT TUTO 04__## ////
+// let squareRotation = 0.0; //// ##__AJOUT TUTO 04__## ////
 let cubeRotation = 0.0; //// ##__AJOUT TUTO 05__## ////
 let deltaTime = 0; //// ##__AJOUT TUTO 04__## ////
 
@@ -55,21 +55,50 @@ function main() {
     // `;
     //// ##__AJOUT TUTO 06__## ////
     // Programme shader de sommet = vertex shader
+  //   const vsSource = `
+  //   attribute vec4 aVertexPosition;
+  //   attribute vec2 aTextureCoord;
+
+  //   uniform mat4 uModelViewMatrix;
+  //   uniform mat4 uProjectionMatrix;
+
+  //   varying highp vec2 vTextureCoord;
+
+  //   void main(void) {
+  //     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+  //     vTextureCoord = aTextureCoord;
+  //   }
+  // `;
+    //// ##__AJOUT TUTO 07__## ////
+    // Programme shader de sommet = vertex shader
     const vsSource = `
-    attribute vec4 aVertexPosition;
-    attribute vec2 aTextureCoord;
+      attribute vec4 aVertexPosition;
+      attribute vec3 aVertexNormal;
+      attribute vec2 aTextureCoord;
 
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
+      uniform mat4 uNormalMatrix;
+      uniform mat4 uModelViewMatrix;
+      uniform mat4 uProjectionMatrix;
 
-    varying highp vec2 vTextureCoord;
+      varying highp vec2 vTextureCoord;
+      varying highp vec3 vLighting;
 
-    void main(void) {
-      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-      vTextureCoord = aTextureCoord;
-    }
-  `;
+      void main(void) {
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vTextureCoord = aTextureCoord;
 
+        // Apply lighting effect
+
+        highp vec3 ambientLight = vec3(0.3, 0.3, 0.3);
+        highp vec3 directionalLightColor = vec3(1, 1, 1);
+        highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+
+        highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+
+        highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+        vLighting = ambientLight + (directionalLightColor * directional);
+      }
+    `;
     //// ##__AJOUT TUTO 02__## ////
     // Programme shader de fragment = fragment shader
     // const fsSource = `
@@ -88,16 +117,29 @@ function main() {
     // `;
     //// ##__AJOUT TUTO 06__## ////
     // Programme shader de fragment = fragment shader
+    // const fsSource = `
+    //   varying highp vec2 vTextureCoord;
+
+    //   uniform sampler2D uSampler;
+
+    //   void main(void) {
+    //     gl_FragColor = texture2D(uSampler, vTextureCoord);
+    //   }
+    // `;
+    //// ##__AJOUT TUTO 07__## ////
+    // Programme shader de fragment = fragment shader
     const fsSource = `
-      varying highp vec2 vTextureCoord;
-
-      uniform sampler2D uSampler;
-
-      void main(void) {
-        gl_FragColor = texture2D(uSampler, vTextureCoord);
-      }
-    `;
-
+    varying highp vec2 vTextureCoord;
+    varying highp vec3 vLighting;
+  
+    uniform sampler2D uSampler;
+  
+    void main(void) {
+      highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
+  
+      gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
+    }
+  `;
     // Initialiser un programme de shader 
     // c'est là que tous les éclairages pour les sommets et ainsi de suite sont établis.
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
@@ -109,11 +151,13 @@ function main() {
         attribLocations: {
           vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
           // vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'), // <<<<==== //// ##__AJOUT TUTO 03__## ////
+          vertexNormal: gl.getAttribLocation(shaderProgram, "aVertexNormal"), // <<<<==== //// ##__AJOUT TUTO 07__## ////
           textureCoord: gl.getAttribLocation(shaderProgram, "aTextureCoord"), // <<<<==== //// ##__AJOUT TUTO 06__## ////
         },
         uniformLocations: {
           projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
           modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix"),
+          normalMatrix: gl.getUniformLocation(shaderProgram, "uNormalMatrix"), // <<<<==== //// ##__AJOUT TUTO 07__## ////
           uSampler: gl.getUniformLocation(shaderProgram, "uSampler"), // <<<<==== //// ##__AJOUT TUTO 06__## ////
         },
     };
@@ -289,8 +333,14 @@ function initBuffers(gl) {
     // Créer un tampon des index pour le cube.
     const indexBuffer = initIndexBuffer(gl);
 
+    //// ##__AJOUT TUTO 07__## ////
+    // Créer un tampon des normales.
+    const normalBuffer = initNormalBuffer(gl);
+
     return {
       position: positionBuffer,
+      //// ##__AJOUT TUTO 07__## ////
+      normal: normalBuffer,
       //// ##__AJOUT TUTO 03__## ////
       // color: colorBuffer,
       //// ##__AJOUT TUTO 06__## //// color remplacé par texture
@@ -429,6 +479,41 @@ function initTextureBuffer(gl) {
 
   return textureCoordBuffer;
 }
+//// ##__AJOUT TUTO 07__## ////
+// Tampon des normales
+//
+function initNormalBuffer(gl) {
+  const normalBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+
+  const vertexNormals = [
+    // Front
+    0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+
+    // Back
+    0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0,
+
+    // Top
+    0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+
+    // Bottom
+    0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0,
+
+    // Right
+    1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+
+    // Left
+    -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+  ];
+
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(vertexNormals),
+    gl.STATIC_DRAW,
+  );
+
+  return normalBuffer;
+}
 //
 // Fonction pour dessiner le rendu final grâce à la définition préalable
 // des programmes shader, des emplacements et positions des sommets stockés dans le tampon
@@ -494,6 +579,13 @@ function drawScene(gl, programInfo, buffers, texture, cubeRotation) {
       cubeRotation * 0.3, // amount to rotate in radians
       [0, 1, 0]
     ); // axe autour duquel tourner (ici l'axe de rotation est l'axe Y)
+
+    //// ##__AJOUT TUTO 07__## ////
+    const normalMatrix = mat4.create();
+    mat4.invert(normalMatrix, modelViewMatrix);
+    mat4.transpose(normalMatrix, normalMatrix);
+
+
     // Dire à WebGL comment extraire les positions du tampon  
     // de position dans l'attribut vertexPosition.
     setPositionAttribute(gl, buffers, programInfo);
@@ -510,6 +602,8 @@ function drawScene(gl, programInfo, buffers, texture, cubeRotation) {
     // Indiquer à WebGL quels indices utiliser pour indexer les sommets
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 
+    setNormalAttribute(gl, buffers, programInfo); //// ##__AJOUT TUTO 07__## ////
+
     // Indiquer à WebGL d'utiliser notre programme pour dessiner
     gl.useProgram(programInfo.program);
 
@@ -523,6 +617,12 @@ function drawScene(gl, programInfo, buffers, texture, cubeRotation) {
       programInfo.uniformLocations.modelViewMatrix,
       false,
       modelViewMatrix,
+    );
+    //// ##__AJOUT TUTO 07__## ////
+    gl.uniformMatrix4fv(
+      programInfo.uniformLocations.normalMatrix,
+      false,
+      normalMatrix,
     );
     //// ##__AJOUT TUTO 06__## ////
     // Indiquer à WebGL que nous voulons affecter l'unité de texture 0
@@ -608,4 +708,25 @@ function setTextureAttribute(gl, buffers, programInfo) {
     offset,
   );
   gl.enableVertexAttribArray(programInfo.attribLocations.textureCoord);
+}
+//// ##__AJOUT TUTO 07__## ////
+// Indique à WebGL comment extraire les normales 
+// du tampon normal dans l'attribut vertexNormal
+// 
+function setNormalAttribute(gl, buffers, programInfo) {
+  const numComponents = 3;
+  const type = gl.FLOAT;
+  const normalize = false;
+  const stride = 0;
+  const offset = 0;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normal);
+  gl.vertexAttribPointer(
+    programInfo.attribLocations.vertexNormal,
+    numComponents,
+    type,
+    normalize,
+    stride,
+    offset
+  );
+  gl.enableVertexAttribArray(programInfo.attribLocations.vertexNormal);
 }
