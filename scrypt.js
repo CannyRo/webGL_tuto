@@ -39,20 +39,37 @@ function main() {
     // `;
     //// ##__AJOUT TUTO 03__## ////
     // Programme shader de sommet = vertex shader
+    // const vsSource = `
+    // attribute vec4 aVertexPosition;
+    // attribute vec4 aVertexColor;
+
+    // uniform mat4 uModelViewMatrix;
+    // uniform mat4 uProjectionMatrix;
+
+    // varying lowp vec4 vColor;
+
+    // void main(void) {
+    //     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+    //     vColor = aVertexColor;
+    // }
+    // `;
+    //// ##__AJOUT TUTO 06__## ////
+    // Programme shader de sommet = vertex shader
     const vsSource = `
     attribute vec4 aVertexPosition;
-    attribute vec4 aVertexColor;
+    attribute vec2 aTextureCoord;
 
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
 
-    varying lowp vec4 vColor;
+    varying highp vec2 vTextureCoord;
 
     void main(void) {
-        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-        vColor = aVertexColor;
+      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+      vTextureCoord = aTextureCoord;
     }
-    `;
+  `;
+
     //// ##__AJOUT TUTO 02__## ////
     // Programme shader de fragment = fragment shader
     // const fsSource = `
@@ -62,13 +79,25 @@ function main() {
     // `;
     //// ##__AJOUT TUTO 03__## ////
     // Programme shader de fragment = fragment shader
-    const fsSource = `
-        varying lowp vec4 vColor;
+    // const fsSource = `
+    //     varying lowp vec4 vColor;
 
-        void main(void) {
-            gl_FragColor = vColor;
-        }
+    //     void main(void) {
+    //         gl_FragColor = vColor;
+    //     }
+    // `;
+    //// ##__AJOUT TUTO 06__## ////
+    // Programme shader de fragment = fragment shader
+    const fsSource = `
+      varying highp vec2 vTextureCoord;
+
+      uniform sampler2D uSampler;
+
+      void main(void) {
+        gl_FragColor = texture2D(uSampler, vTextureCoord);
+      }
     `;
+
     // Initialiser un programme de shader 
     // c'est là que tous les éclairages pour les sommets et ainsi de suite sont établis.
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
@@ -79,16 +108,21 @@ function main() {
         program: shaderProgram,
         attribLocations: {
           vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
-          vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'), // <<<<==== //// ##__AJOUT TUTO 03__## ////
+          // vertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor'), // <<<<==== //// ##__AJOUT TUTO 03__## ////
+          textureCoord: gl.getAttribLocation(shaderProgram, "aTextureCoord"), // <<<<==== //// ##__AJOUT TUTO 06__## ////
         },
         uniformLocations: {
           projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
           modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix"),
+          uSampler: gl.getUniformLocation(shaderProgram, "uSampler"), // <<<<==== //// ##__AJOUT TUTO 06__## ////
         },
     };
     // Ici on appelle la routine qui va construire
     // tous les object qui seront dessinés
     const buffers = initBuffers(gl);
+    //// ##__AJOUT TUTO 06__## ////
+    // Load texture
+    const texture = loadTexture(gl, "cubetexture.png");
     //// ##__AJOUT TUTO 04__## //// nouvelle variable pour mémoriser l'instant auquel nous avons réalisé l'animation pour la dernière fois
     let then = 0;
 
@@ -104,7 +138,7 @@ function main() {
     
         // drawScene(gl, programInfo, buffers, squareRotation);
         //// ##__AJOUT TUTO 05__## //// change square with cube
-        drawScene(gl, programInfo, buffers, cubeRotation);
+        drawScene(gl, programInfo, buffers, texture, cubeRotation);
         // squareRotation += deltaTime;
         cubeRotation += deltaTime;
     
@@ -165,6 +199,76 @@ function loadShader(gl, type, source) {
   
     return shader;
 }
+//// ##__AJOUT TUTO 06__## ////
+// Initialiser une texture et charger une image.
+// Quand le chargement d'une image est terminé, la copier dans la texture.
+//
+function loadTexture(gl, url) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Du fait que les images doivent être téléchargées depuis l'internet,
+  // il peut s'écouler un certain temps avant qu'elles ne soient prêtes.
+  // Jusque là, mettre un seul pixel dans la texture, de sorte que nous puissions
+  // l'utiliser immédiatement. Quand le téléchargement de la page sera terminé,
+  // nous mettrons à jour la texture avec le contenu de l'image.
+  const level = 0;
+  const internalFormat = gl.RGBA;
+  const width = 1;
+  const height = 1;
+  const border = 0;
+  const srcFormat = gl.RGBA;
+  const srcType = gl.UNSIGNED_BYTE;
+  const pixel = new Uint8Array([0, 0, 255, 255]); // bleu opaque
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    level,
+    internalFormat,
+    width,
+    height,
+    border,
+    srcFormat,
+    srcType,
+    pixel,
+  );
+
+  const image = new Image();
+  image.onload = function () {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      level,
+      internalFormat,
+      srcFormat,
+      srcType,
+      image,
+    );
+    // WebGL1 a des spécifications différentes pour les images puissances de 2
+    // par rapport aux images non puissances de 2 ; aussi vérifier si l'image est une
+    // puissance de 2 sur chacune de ses dimensions.
+    if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+      // Oui, c'est une puissance de 2. Générer les mips.
+      gl.generateMipmap(gl.TEXTURE_2D);
+    } else {
+      // Non, ce n'est pas une puissance de 2. Désactiver les mips et définir l'habillage
+      // comme "accrocher au bord"
+      // Empêcher l'habillage selon la coordonnée s (répétition).
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      // Empêcher l'habillage selon la coordonnée t (répétition).
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      // gl.NEAREST est aussi permis, au lieu de gl.LINEAR, du fait qu'aucun ne fait de mipmap.
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    }
+  };
+  image.src = url;
+
+  return texture;
+}
+//// ##__AJOUT TUTO 06__## ////
+// Utilitaire
+function isPowerOf2(value) {
+  return (value & (value - 1)) === 0;
+}
 //
 // Créer un tampon qui contiendra les positions des sommets utilisés pour le rendu 
 //
@@ -173,7 +277,11 @@ function initBuffers(gl) {
     const positionBuffer = initPositionBuffer(gl);
     //// ##__AJOUT TUTO 03__## ////
     // Créer un tampon des couleurs pour le carré.
-    const colorBuffer = initColorBuffer(gl);
+    // const colorBuffer = initColorBuffer(gl);
+
+    //// ##__AJOUT TUTO 06__## ////
+    // on remplace le tampon de couleur par le tampon de texture
+    const textureCoordBuffer = initTextureBuffer(gl);
 
     //// ##__AJOUT TUTO 05__## ////
     // Créer un tampon des index pour le cube.
@@ -182,7 +290,9 @@ function initBuffers(gl) {
     return {
       position: positionBuffer,
       //// ##__AJOUT TUTO 03__## ////
-      color: colorBuffer,
+      // color: colorBuffer,
+      //// ##__AJOUT TUTO 06__## //// color remplacé par texture
+      textureCoord: textureCoordBuffer,
       //// ##__AJOUT TUTO 05__## ////
       indices: indexBuffer,
     };
@@ -288,11 +398,40 @@ function initIndexBuffer(gl) {
 
     return  indexBuffer;
 }
+//// ##__AJOUT TUTO 06__## ////
+// Tampon des textures
+//
+function initTextureBuffer(gl) {
+  const textureCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+
+  const textureCoordinates = [
+    // Front
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+    // Back
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+    // Top
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+    // Bottom
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+    // Right
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+    // Left
+    0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+  ];
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(textureCoordinates),
+    gl.STATIC_DRAW
+  );
+
+  return textureCoordBuffer;
+}
 //
 // Fonction pour dessiner le rendu final grâce à la définition préalable
 // des programmes shader, des emplacements et positions des sommets stockés dans le tampon
 //
-function drawScene(gl, programInfo, buffers) {
+function drawScene(gl, programInfo, buffers, texture, cubeRotation) {
     gl.clearColor(0.0, 0.0, 0.0, 1.0); // effacement en noir, complètement opaque
     gl.clearDepth(1.0); // tout effacer
     gl.enable(gl.DEPTH_TEST); // activer le test de profondeur
@@ -359,7 +498,11 @@ function drawScene(gl, programInfo, buffers) {
     //// ##__AJOUT TUTO 03__## ////
     // Dire à WebGL comment extraire les couleurs du tampon  
     // de couleurs dans l'attribut vertexColor.
-    setColorAttribute(gl, buffers, programInfo);
+    //setColorAttribute(gl, buffers, programInfo);
+    //// ##__AJOUT TUTO 06__## ////
+    // Dire à WebGL comment extraire les couleurs du tampon  
+    // de couleurs dans l'attribut vertexColor.
+    setTextureAttribute(gl, buffers, programInfo);
 
     //// ##__AJOUT TUTO 05__## ////
     // Indiquer à WebGL quels indices utiliser pour indexer les sommets
@@ -379,6 +522,13 @@ function drawScene(gl, programInfo, buffers) {
       false,
       modelViewMatrix,
     );
+    //// ##__AJOUT TUTO 06__## ////
+    // Indiquer à WebGL que nous voulons affecter l'unité de texture 0
+    gl.activeTexture(gl.TEXTURE0);
+    // Lier la texture à l'unité de texture 0
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    // Indiquer au shader que nous avons lié la texture à l'unité de texture 0
+    gl.uniform1i(programInfo.uniformLocations.uSampler, 0);
   
     // {
     //   const offset = 0;
@@ -436,4 +586,24 @@ function setColorAttribute(gl, buffers, programInfo){
         offset,
     );
     gl.enableVertexAttribArray(programInfo.attribLocations.vertexColor);
+}
+//// ##__AJOUT TUTO 06__## ////
+// Indiquer à WebGL comment extraire les coordonnées de texture du tampon
+// 
+function setTextureAttribute(gl, buffers, programInfo) {
+  const num = 2; // chaque coordonnée est composée de 2 valeurs
+  const type = gl.FLOAT; // les données dans le tampon sont des flottants 32 bits
+  const normalize = false; // ne pas normaliser
+  const stride = 0; // combien d'octets à récupérer entre un jeu et le suivant
+  const offset = 0; // à combien d'octets du début faut-il commencer
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.textureCoord);
+  gl.vertexAttribPointer(
+    programInfo.attribLocations.textureCoord,
+    num,
+    type,
+    normalize,
+    stride,
+    offset,
+  );
+  gl.enableVertexAttribArray(programInfo.attribLocations.textureCoord);
 }
