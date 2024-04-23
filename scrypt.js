@@ -123,6 +123,8 @@ function main() {
     //// ##__AJOUT TUTO 06__## ////
     // Load texture
     const texture = loadTexture(gl, "cubetexture.png");
+    // Flip image pixels into the bottom-to-top order that WebGL expects.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // on renverse l'image pour qu'elle apparaisse NON inversée/miroir
     //// ##__AJOUT TUTO 04__## //// nouvelle variable pour mémoriser l'instant auquel nous avons réalisé l'animation pour la dernière fois
     let then = 0;
 
