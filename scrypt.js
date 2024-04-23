@@ -1,6 +1,7 @@
 console.log("Hello WebGL");
 
 let squareRotation = 0.0; //// ##__AJOUT TUTO 04__## ////
+let cubeRotation = 0.0; //// ##__AJOUT TUTO 05__## ////
 let deltaTime = 0; //// ##__AJOUT TUTO 04__## ////
 
 main();
@@ -47,7 +48,7 @@ function main() {
 
     varying lowp vec4 vColor;
 
-    void main() {
+    void main(void) {
         gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
         vColor = aVertexColor;
     }
@@ -101,8 +102,11 @@ function main() {
         const deltaTime = now - then;
         then = now;
     
-        drawScene(gl, programInfo, buffers, squareRotation);
-        squareRotation += deltaTime;
+        // drawScene(gl, programInfo, buffers, squareRotation);
+        //// ##__AJOUT TUTO 05__## //// change square with cube
+        drawScene(gl, programInfo, buffers, cubeRotation);
+        // squareRotation += deltaTime;
+        cubeRotation += deltaTime;
     
         requestAnimationFrame(render);
     }
@@ -171,10 +175,16 @@ function initBuffers(gl) {
     // Créer un tampon des couleurs pour le carré.
     const colorBuffer = initColorBuffer(gl);
 
+    //// ##__AJOUT TUTO 05__## ////
+    // Créer un tampon des index pour le cube.
+    const indexBuffer = initIndexBuffer(gl);
+
     return {
       position: positionBuffer,
       //// ##__AJOUT TUTO 03__## ////
       color: colorBuffer,
+      //// ##__AJOUT TUTO 05__## ////
+      indices: indexBuffer,
     };
 }
 //
@@ -189,7 +199,27 @@ function initPositionBuffer(gl) {
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   
     // Créer maintenant un tableau des positions pour le carré.
-    const positions = [1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0];
+    // const positions = [1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, -1.0];
+    //// ##__AJOUT TUTO 05__## ////
+    const positions = [
+      // Face avant
+      -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+    
+      // Face arrière
+      -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0,
+    
+      // Face supérieure
+      -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0,
+    
+      // Face inférieure
+      -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0,
+    
+      // Face droite
+      1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0,
+    
+      // Face gauche
+      -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0,
+    ];
   
     // Passer mainenant la liste des positions à WebGL pour construire la forme.
     // Nous faisons cela en créant un Float32Array à partir du tableau JavaScript,
@@ -204,19 +234,59 @@ function initPositionBuffer(gl) {
 function initColorBuffer(gl) {
     // Création des couleurs, ici une couleur différente pour chacun des quatres sommet du carré 2D
     //
-    const colors = [
-        //R   //G   //B   //A
-        1.0,  1.0,  1.0,  1.0,    // = blanc
-        1.0,  0.0,  0.0,  1.0,    // = rouge
-        0.0,  1.0,  0.0,  1.0,    // = vert
-        0.0,  0.0,  1.0,  1.0,    // = bleu
+    // const colors = [
+    //     //R   //G   //B   //A
+    //     1.0,  1.0,  1.0,  1.0,    // = blanc
+    //     1.0,  0.0,  0.0,  1.0,    // = rouge
+    //     0.0,  1.0,  0.0,  1.0,    // = vert
+    //     0.0,  0.0,  1.0,  1.0,    // = bleu
+    // ];
+    //// ##__AJOUT TUTO 05__## ////
+    const faceColors = [
+      [1.0, 1.0, 1.0, 1.0], // Face avant : blanc
+      [1.0, 0.0, 0.0, 1.0], // Face arrière : rouge
+      [0.0, 1.0, 0.0, 1.0], // Face supérieure : vert
+      [0.0, 0.0, 1.0, 1.0], // Face infiérieure : bleu
+      [1.0, 1.0, 0.0, 1.0], // Face droite : jaune
+      [1.0, 0.0, 1.0, 1.0], // Face gauche : violet
     ];
+    // Conversion du tableau des couleurs en une table pour tous les sommets
+    let colors = [];
+    for (let j = 0; j < faceColors.length; j++) {
+      const c = faceColors[j];
+      // Répéter chaque couleur quatre fois pour les quatre sommets d'une face
+      colors = colors.concat(c, c, c, c);
+    }
   
     const colorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
   
     return colorBuffer;
+}
+//// ##__AJOUT TUTO 05__## ////
+// Tampon des éléments
+//
+function initIndexBuffer(gl) {
+  const indexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+  // Ce tableau définit chaque face comme deux triangles, en utilisant les
+  // indices dans le tableau des sommets pour spécifier la position de chaque
+  // triangle.
+  const indices = [
+    0,  1,  2,      0,  2,  3,    // avant
+    4,  5,  6,      4,  6,  7,    // arrière
+    8,  9,  10,     8,  10, 11,   // haut
+    12, 13, 14,     12, 14, 15,   // bas
+    16, 17, 18,     16, 18, 19,   // droite
+    20, 21, 22,     20, 22, 23,   // gauche
+  ];
+  // Envoyer maintenant le tableau des éléments à GL
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+    new Uint16Array(indices), gl.STATIC_DRAW);
+
+    return  indexBuffer;
 }
 //
 // Fonction pour dessiner le rendu final grâce à la définition préalable
@@ -265,10 +335,24 @@ function drawScene(gl, programInfo, buffers) {
     mat4.rotate(
         modelViewMatrix, // matrice de destination
         modelViewMatrix, // matrice de rotation
-        squareRotation, // rotation en radians
+        //squareRotation, // rotation en radians
+        //// ##__AJOUT TUTO 05__## ////
+        cubeRotation,
         [0, 0, 1], // [ xAxe, yAxe, zAxe]
     ); // axe autour duquel tourner (ici l'axe de rotation est l'axe Z)
-
+    //// ##__AJOUT TUTO 05__## //// Ajout d'un rotation sur l'axe de X
+    mat4.rotate(
+      modelViewMatrix, // destination matrix
+      modelViewMatrix, // matrix to rotate
+      cubeRotation * 0.7, // amount to rotate in radians
+      [1, 0, 0]
+    ); // axe autour duquel tourner (ici l'axe de rotation est l'axe X)
+    mat4.rotate(
+      modelViewMatrix, // destination matrix
+      modelViewMatrix, // matrix to rotate
+      cubeRotation * 0.3, // amount to rotate in radians
+      [0, 1, 0]
+    ); // axe autour duquel tourner (ici l'axe de rotation est l'axe Y)
     // Dire à WebGL comment extraire les positions du tampon  
     // de position dans l'attribut vertexPosition.
     setPositionAttribute(gl, buffers, programInfo);
@@ -276,6 +360,10 @@ function drawScene(gl, programInfo, buffers) {
     // Dire à WebGL comment extraire les couleurs du tampon  
     // de couleurs dans l'attribut vertexColor.
     setColorAttribute(gl, buffers, programInfo);
+
+    //// ##__AJOUT TUTO 05__## ////
+    // Indiquer à WebGL quels indices utiliser pour indexer les sommets
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 
     // Indiquer à WebGL d'utiliser notre programme pour dessiner
     gl.useProgram(programInfo.program);
@@ -292,17 +380,26 @@ function drawScene(gl, programInfo, buffers) {
       modelViewMatrix,
     );
   
+    // {
+    //   const offset = 0;
+    //   const vertexCount = 4;
+    //   gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+    // }
+    //// ##__AJOUT TUTO 05__## ////
     {
+      const vertexCount = 36;
+      const type = gl.UNSIGNED_SHORT;
       const offset = 0;
-      const vertexCount = 4;
-      gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+      gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
     }
 }
 //
 // Indiquer à WebGL comment extraire les positions à partir du tampon des
 // positions pour les mettre dans l'attribut vertexPosition.
 function setPositionAttribute(gl, buffers, programInfo) {
-    const numComponents = 2; // extraire 2 valeurs par itération
+    // const numComponents = 2; // extraire 2 valeurs par itération
+    //// ##__AJOUT TUTO 05__## ////
+    const numComponents = 3; // extraire 3 valeurs par itération
     const type = gl.FLOAT; // les données dans le tampon sont des flottants 32bit
     const normalize = false; // ne pas normaliser
     const stride = 0; // combien d'octets à extraire entre un jeu de valeurs et le suivant
